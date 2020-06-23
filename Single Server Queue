@@ -1,0 +1,185 @@
+import numpy as np
+from matplotlib import pyplot as plt
+np.random.seed(0)
+
+class Single_server_queue:
+  def __init__(self):
+    self.interarrivals = []
+    self.service_times = []
+    self.interarrival= np.random.exponential( scale=(1/3),size=120)  #exponential distribution mean 1/3
+    self.service_time= np.random.exponential( scale=(1/4),size=120)  #exponential distribution mean 1/4
+
+    for x in range(0,len(self.interarrival)):
+      self.interarrivals.append(self.interarrival[x])
+      self.service_times.append(self.service_time[x])
+
+    print(self.interarrivals)
+    print(self.service_times)
+    self.clock= 0.0
+    
+    self.next_arrival=self.interarrivals.pop(0)
+    self.next_departure= float('inf')
+    
+    self.num_in_queue= 0
+    self.times_of_arrivalqueue= []         #store times of arrivals who are waiting in the queue
+    self.service_times_in_queue= []   #store service times of waiting customers in the queue
+    self.qt= [] #store Qt value
+    self.bt= [] #store bt vlue
+    self.t = [] #store time
+    self.total_delay=0.0
+    self.num_of_delays= 0.0
+    self.area_under_q= 0.0
+    self.area_under_b= 0.0
+    
+    self.server_status= 0        #0 for IDLE , 1 for BUSY
+    self.last_event_time=0.0     #we will need to store last event clock time 
+
+  def start(self,n,m):
+    while self.num_of_delays<=n:
+      self.timing(m)
+    print(" ")
+    print("Average Delay :"+" "+str(self.total_delay/n))
+    print("Expected Number of Customers in the queue :"+" "+str(self.area_under_q/ self.last_event_time))
+    print("Expected Utilization of the server :"+" "+str(self.area_under_b/self.last_event_time))
+    print(" ")
+    self.QT()
+    self.BT() 
+
+  def QT(self):
+    plt.bar(self.t,self.qt)
+
+    plt.xlabel('TIME')
+    plt.ylabel('  Qt ')
+    plt.show()
+
+  def BT(self):
+    plt.bar(self.t,self.bt)
+    plt.xlabel('TIME')
+    plt.ylabel('  Bt ')
+    plt.show()
+
+  def timing(self,m):
+    self.clock= min(self.next_arrival,self.next_departure)  #First set clock to minimum time of next event
+    self.update_register()
+    if self.next_arrival<= self.next_departure:
+      self.arrival()
+      print("Arrival at Clock:" +str(self.clock))
+
+    else:
+      self.departure(m)
+      print("Departure at "+str(self.clock))
+    
+    print("Server Status:"+str(self.server_status))
+    print("Times of arrivals in Queue: "+ str(self.times_of_arrivalqueue))
+    print("Service times in Queue: "+str(self.service_times_in_queue))
+    print("Number of Delays: "+str(self.num_of_delays))
+    print("Total Delay:" +str(self.total_delay))
+    print("Next Arrival Time: "+str(self.next_arrival))
+    print("Next Departure Time: "+str(self.next_departure))
+    print(" ")
+
+  def arrival(self):
+    #Schedule next arrival , new_arrival = previous_arrival + inter_arrival time of next customer
+    self.next_arrival+= self.interarrivals.pop(0)  
+    
+    if self.server_status==0:   #server is idle
+      self.server_status= 1   #make server BUSY
+      self.bt.append(self.server_status)  # append 1 
+      self.qt.append(self.num_in_queue)
+      delay=0.0            #so delay is zero
+      self.total_delay += delay  
+      self.num_of_delays +=1   #increase the number of customers delayed
+
+      #schedule next departure, pop the first element of service_times list to get service time of this customer
+      self.next_departure = self.clock+ self.service_times.pop(0) 
+  
+    else:     #Server is BUSY
+      #increase queue length, this customer will have to wait in the queue
+      self.num_in_queue+=1
+      self.bt.append(1)
+      self.qt.append(self.num_in_queue)
+
+      #store the arrival time and service time of this customer in seperate lists
+      self.times_of_arrivalqueue.append(self.clock) 
+      self.service_times_in_queue.append(self.service_times.pop(0)) 
+
+  def departure(self,m):
+    #check number of customers in the queue
+    if self.num_in_queue==0:  #if no customer in the queue
+      #make server IDLE 
+      self.server_status= 0
+      self.bt.append(self.server_status) #append 0
+      self.qt.append(self.num_in_queue)
+      #schedule next departure= infinity
+      self.next_departure= float('infinity')
+    
+    else: 
+      #if queue not empty, pop one customer, decrease queue length
+      self.num_in_queue-=1
+      self.qt.append(self.num_in_queue)
+      self.num_of_delays+=1
+      #AS FIFO, pop first arrival and service time from the queue. IF LIFO we have to pop last arrival and service time
+      #For SJF, finf the index of minimum service time from  service_times_in_queue list.
+      #Then pop the arrival of that index from times_of_arrivalqueue for delay count and others.  
+      if m == 1:
+        print("LIFO")
+        arrival= self.times_of_arrivalqueue.pop(len(self.times_of_arrivalqueue)-1)
+
+        delay= self.clock- arrival
+        self.total_delay+=delay
+        self.next_departure= self.clock+ self.service_times_in_queue.pop(len(self.service_times_in_queue)-1)
+        self.bt.append(1)
+      
+      
+      elif m == 2:
+        print("SJF")
+        min_val = min(self.service_times_in_queue)
+        index = self.service_times_in_queue.index(min_val)
+
+        arrival= self.times_of_arrivalqueue.pop(index)
+
+        delay= self.clock- arrival
+        self.total_delay+=delay
+        self.next_departure= self.clock+ self.service_times_in_queue.pop(index)
+        self.bt.append(1)
+
+      elif m == 3:
+        print("SIRO")
+        val = np.random.randint(100)% (len(self.times_of_arrivalqueue))
+        
+        arrival= self.times_of_arrivalqueue.pop(val)
+      
+        delay= self.clock- arrival
+        self.total_delay+=delay
+        self.next_departure= self.clock+ self.service_times_in_queue.pop(val)
+        self.bt.append(1)
+
+
+      else:  
+        print("FIFO")
+        arrival= self.times_of_arrivalqueue.pop(0)
+      
+        delay= self.clock- arrival
+        self.total_delay+=delay
+        self.next_departure= self.clock+ self.service_times_in_queue.pop(0)
+        self.bt.append(1)
+
+  def update_register(self):
+    time_differnce= self.clock - self.last_event_time
+    self.area_under_q+=self.num_in_queue*time_differnce
+    self.area_under_b+=self.server_status*time_differnce
+    self.last_event_time=self.clock
+    self.t.append(self.clock)
+    print("Area under Qt :"+str(self.area_under_q))
+    print("Area under Bt :"+str(self.area_under_b))
+
+
+#main function  
+n = 50 #number of customer
+#types of Queue
+# 1=LIFO, 2=SJF, 3=SIRO , other wise FIFO
+types = 1 
+
+s= Single_server_queue()
+s.start(n,types)
+  
